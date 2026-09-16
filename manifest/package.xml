@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Package xmlns="http://soap.sforce.com/2006/04/metadata">
+	<types>
+		<members>AsyncJobConfigurationService</members>
+		<members>AsyncJobHandlerBase</members>
+		<members>AsyncJobHandlerHelper</members>
+		<members>BatchApexHandler</members>
+		<members>BatchApexHandlerTest</members>
+		<members>BatchApexHandlerTestBatch</members>
+		<members>QueueableApexHandler</members>
+		<members>QueueableApexHandlerTest</members>
+		<name>ApexClass</name>
+	</types>
+	<types>
+		<members>Async_Job_Configuration__mdt</members>
+		<name>CustomObject</name>
+	</types>
+	<types>
+		<members>Async_Job_Configuration__mdt-Async Job Configuration Layout</members>
+		<name>Layout</name>
+	</types>
+	<version>62.0</version>
+</Package>

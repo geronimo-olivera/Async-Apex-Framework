@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ValidationRule xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Send_Email_Requires_Address</fullName>
+    <active>true</active>
+    <description>Notification_Emails__c must be set whenever Send_Email_On_Failure__c is checked.</description>
+    <errorConditionFormula>Send_Email_On_Failure__c &amp;&amp; ISBLANK(Notification_Emails__c)</errorConditionFormula>
+    <errorDisplayField>Notification_Emails__c</errorDisplayField>
+    <errorMessage>Notification Emails is required when Send Email On Failure is checked.</errorMessage>
+</ValidationRule>

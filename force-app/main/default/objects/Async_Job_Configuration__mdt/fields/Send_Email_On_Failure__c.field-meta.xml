@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Send_Email_On_Failure__c</fullName>
+    <defaultValue>false</defaultValue>
+    <description>If true, an email is sent to Notification_Emails__c when this job ultimately finishes with errors (after any configured retries are exhausted).</description>
+    <fieldManageability>DeveloperControlled</fieldManageability>
+    <inlineHelpText>Send an email to Notification Emails if this job ultimately fails.</inlineHelpText>
+    <label>Send Email On Failure</label>
+    <type>Checkbox</type>
+</CustomField>

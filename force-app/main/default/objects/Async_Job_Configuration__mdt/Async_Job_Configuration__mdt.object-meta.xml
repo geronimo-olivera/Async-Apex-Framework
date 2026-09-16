@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomObject xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description>Configures active/inactive state, retry, and failure email for one BatchApexHandler or QueueableApexHandler subclass, shared by both frameworks. A record is optional — a class with no configuration runs with the framework's defaults.</description>
+    <label>Async Job Configuration</label>
+    <pluralLabel>Async Job Configurations</pluralLabel>
+    <visibility>Public</visibility>
+</CustomObject>

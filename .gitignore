@@ -1,0 +1,9 @@
+# Salesforce cache/config (machine-specific, may reference local orgs)
+.sf/
+.sfdx/
+.localdevserver/
+
+# OS/editor
+.DS_Store
+.vscode/
+*.log

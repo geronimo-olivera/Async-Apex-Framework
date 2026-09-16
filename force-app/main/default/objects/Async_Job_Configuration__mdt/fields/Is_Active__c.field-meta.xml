@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Is_Active__c</fullName>
+    <defaultValue>true</defaultValue>
+    <description>If false, BatchApexHandler.run/QueueableApexHandler.run skip this class instead of enqueuing it. Defaults to true, both on a new record and when no configuration record exists at all.</description>
+    <fieldManageability>DeveloperControlled</fieldManageability>
+    <inlineHelpText>Whether this job runs at all when launched through run().</inlineHelpText>
+    <label>Is Active</label>
+    <type>Checkbox</type>
+</CustomField>

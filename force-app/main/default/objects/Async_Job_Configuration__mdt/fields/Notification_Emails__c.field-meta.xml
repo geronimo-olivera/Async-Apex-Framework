@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Notification_Emails__c</fullName>
+    <description>Email address(es) notified when Send_Email_On_Failure__c is true and this job ultimately fails. One address, or several separated by semicolons (e.g. email1@x.com; email2@x.com). Required whenever Send_Email_On_Failure__c is checked.</description>
+    <fieldManageability>DeveloperControlled</fieldManageability>
+    <inlineHelpText>Where to send the failure notification. One address, or several separated by semicolons. Required if Send Email On Failure is checked.</inlineHelpText>
+    <label>Notification Emails</label>
+    <length>1000</length>
+    <required>false</required>
+    <type>LongTextArea</type>
+    <visibleLines>2</visibleLines>
+</CustomField>

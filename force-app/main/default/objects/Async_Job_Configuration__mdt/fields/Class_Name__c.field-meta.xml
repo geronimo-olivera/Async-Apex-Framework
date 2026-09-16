@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Class_Name__c</fullName>
+    <caseSensitive>false</caseSensitive>
+    <description>API name of the BatchApexHandler or QueueableApexHandler subclass this configuration applies to. Matched automatically at runtime — one record per class.</description>
+    <externalId>false</externalId>
+    <fieldManageability>DeveloperControlled</fieldManageability>
+    <inlineHelpText>API name of the batch or queueable class this configuration applies to.</inlineHelpText>
+    <label>Class Name</label>
+    <length>255</length>
+    <required>true</required>
+    <type>Text</type>
+    <unique>true</unique>
+</CustomField>

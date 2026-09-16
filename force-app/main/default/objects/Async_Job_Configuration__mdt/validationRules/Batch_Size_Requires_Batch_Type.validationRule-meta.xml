@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ValidationRule xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Batch_Size_Requires_Batch_Type</fullName>
+    <active>true</active>
+    <description>Batch_Size__c only means anything when Job_Type__c is Batch — QueueableApexHandler never reads it.</description>
+    <errorConditionFormula>NOT(ISBLANK(Batch_Size__c)) &amp;&amp; TEXT(Job_Type__c) &lt;&gt; 'Batch'</errorConditionFormula>
+    <errorDisplayField>Batch_Size__c</errorDisplayField>
+    <errorMessage>Batch Size only applies when Job Type is Batch.</errorMessage>
+</ValidationRule>
