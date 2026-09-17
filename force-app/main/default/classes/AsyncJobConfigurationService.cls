@@ -19,7 +19,8 @@ public inherited sharing class AsyncJobConfigurationService {
                 Is_Active__c,
                 Max_Retry_Attempts__c,
                 Send_Email_On_Failure__c,
-                Notification_Emails__c
+                Notification_Emails__c,
+                Org_Wide_Email_Address_Id__c
             FROM Async_Job_Configuration__mdt
             WHERE Class_Name__c = :className
             LIMIT 1

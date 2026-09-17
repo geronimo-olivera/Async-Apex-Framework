@@ -37,8 +37,9 @@ One record per `BatchApexHandler` or `QueueableApexHandler` subclass, matched au
 | `Max_Retry_Attempts__c` | Number | How many times to automatically retry after a failure. Blank or 0 disables retry. Capped at 10 regardless of what's entered. |
 | `Send_Email_On_Failure__c` | Checkbox | If `true`, sends a failure email once the job (after any configured retries) still failed. |
 | `Notification_Emails__c` | Long Text Area | One address, or several separated by semicolons (`first@x.com; second@x.com`). Required whenever `Send_Email_On_Failure__c` is checked (enforced by a validation rule). |
+| `Org_Wide_Email_Address_Id__c` | Text | Id of a verified Organization-Wide Email Address (Setup → Organization-Wide Email Addresses) to send the failure email from. Required whenever `Send_Email_On_Failure__c` is checked (enforced by a validation rule) — **the email can fail to send without it**, since without an explicit org-wide address `Messaging.sendEmail` falls back to the running user's own address, which can throw `INVALID_SENDER` in a Batch/Queueable context. |
 
-Two validation rules enforce the two dependencies above: `Batch_Size_Requires_Batch_Type` and `Send_Email_Requires_Address`.
+Three validation rules enforce the dependencies above: `Batch_Size_Requires_Batch_Type`, `Send_Email_Requires_Address`, and `Send_Email_Requires_Org_Wide_Address`.
 
 ## Tests
 

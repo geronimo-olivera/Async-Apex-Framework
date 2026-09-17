@@ -25,10 +25,13 @@ An `Async_Job_Configuration__mdt` record is entirely optional. With no record, a
       <values><field>Max_Retry_Attempts__c</field><value xsi:type="xsd:double">2</value></values>
       <values><field>Send_Email_On_Failure__c</field><value xsi:type="xsd:boolean">true</value></values>
       <values><field>Notification_Emails__c</field><value xsi:type="xsd:string">ops@example.com; oncall@example.com</value></values>
+      <values><field>Org_Wide_Email_Address_Id__c</field><value xsi:type="xsd:string">0D8XXXXXXXXXXXXXXX</value></values>
   </CustomMetadata>
   ```
 
 `Class_Name__c` is unique — you can't create two configuration records for the same class, so there's no ambiguity about which one applies.
+
+**Finding an Organization-Wide Email Address Id**: Setup → Organization-Wide Addresses → click the address you want to send from → the Id (starts with `0D8`) is in the browser's URL. There has to be at least one verified address configured here before you can reference it — this repo doesn't create one for you, since it depends on a real, org-owned email address being verified through an email Salesforce sends to it.
 
 ## Writing a Batch job — easy example
 
@@ -234,9 +237,11 @@ Neither one tracks "what already succeeded" for you. If `executeScope()`/`execut
 
 ## Failure emails
 
-Check `Send_Email_On_Failure__c` and set one or more semicolon-separated addresses in `Notification_Emails__c` (`first@x.com; second@x.com`) — a validation rule requires the address field whenever the checkbox is set. The email fires once, after the job (following any configured retries) still has errors.
+Check `Send_Email_On_Failure__c`, set one or more semicolon-separated addresses in `Notification_Emails__c` (`first@x.com; second@x.com`), and set `Org_Wide_Email_Address_Id__c` to a verified Organization-Wide Email Address Id — validation rules require both of those fields whenever the checkbox is set. The email fires once, after the job (following any configured retries) still has errors.
 
-A malformed address doesn't block your job from running and doesn't throw — `AsyncJobHandlerHelper.sendFailureEmail` catches that internally and only logs it (`System.debug(LoggingLevel.ERROR, 'Failed to send failure notification for ...')`), on purpose, so a typo in a notification address can never take down the actual record processing. The tradeoff is that nothing else tells you the notification silently failed — if you suspect a configured email isn't arriving, check debug logs for that exact line before assuming the job itself is fine.
+**`Org_Wide_Email_Address_Id__c` is not optional in practice, even though the field itself allows blank.** `AsyncJobHandlerHelper.sendFailureEmail` only calls `setOrgWideEmailAddressId` when it's populated — leave it blank and the email falls back to sending as the running user. In a Batch or Queueable context that running user is often an automated/integration identity without a confirmed, deliverable email address, and `Messaging.sendEmail` can throw `INVALID_SENDER` in that case. The validation rule exists specifically to stop you from configuring a failure notification that looks correct but silently never arrives.
+
+A malformed address (in either `Notification_Emails__c` or an invalid `Org_Wide_Email_Address_Id__c`) doesn't block your job from running and doesn't throw — `AsyncJobHandlerHelper.sendFailureEmail` catches that internally and only logs it (`System.debug(LoggingLevel.ERROR, 'Failed to send failure notification for ...')`), on purpose, so a typo can never take down the actual record processing. The tradeoff is that nothing else tells you the notification silently failed — if you suspect a configured email isn't arriving, check debug logs for that exact line before assuming the job itself is fine.
 
 ## Scheduling a job
 
@@ -271,7 +276,8 @@ If you write your own `BatchApexHandler`/`QueueableApexHandler` subclass and wan
 - Don't write `executeScope()`/`executeJob()` as non-idempotent if `Max_Retry_Attempts__c` is anything above 0 — see [Retry behavior and idempotency](#retry-behavior-and-idempotency) above.
 - Don't set `Max_Retry_Attempts__c` expecting more than 10 attempts — it's hard-clamped in code regardless of what the record says.
 - Don't point Setup's **Schedule Apex** UI at a subclass that needs constructor arguments — it can't supply them. Use a small `Schedulable` wrapper instead.
-- Don't assume `Notification_Emails__c` will tell you if it's misconfigured — a malformed address fails silently into a debug log line, not into the job's own success/failure state.
+- Don't assume `Notification_Emails__c` or `Org_Wide_Email_Address_Id__c` will tell you if either is misconfigured — a malformed address, or an org-wide address Id that doesn't correspond to a real verified address, fails silently into a debug log line, not into the job's own success/failure state.
+- Don't leave `Org_Wide_Email_Address_Id__c` blank and assume `Notification_Emails__c` alone is enough — see [Failure emails](#failure-emails) above for why sending as the running user instead can fail outright in a Batch/Queueable context.
 - Don't try to create a second `Async_Job_Configuration__mdt` record for the same `Class_Name__c` — the field is unique, so the save/deploy is rejected outright.
 - Don't assume a Queueable job's Setup → Apex Jobs status reflects whether it actually failed — it always shows "Completed" by design, even after exhausting retries. Check debug logs or the failure email instead.
 - Don't assume `finish()` is guaranteed to run in every conceivable Batch failure scenario — if an extreme majority of a real job's chunks fail, the platform itself can abort the job early. If a configured failure email doesn't show up when you expect one, check Setup → Apex Jobs for a job stuck in "Failed" status rather than assuming the framework silently swallowed it.

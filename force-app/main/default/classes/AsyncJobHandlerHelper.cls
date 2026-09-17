@@ -31,6 +31,7 @@ public inherited sharing class AsyncJobHandlerHelper {
         settings.maxRetryAttempts = Math.min(MAX_ALLOWED_RETRY_ATTEMPTS, Math.max(0, rawMaxRetryAttempts));
         settings.sendEmailOnFailure = config != null && config.Send_Email_On_Failure__c;
         settings.notificationEmail = config != null ? config.Notification_Emails__c : null;
+        settings.orgWideEmailAddressId = config != null ? config.Org_Wide_Email_Address_Id__c : null;
         return settings;
     }
 
@@ -38,7 +39,7 @@ public inherited sharing class AsyncJobHandlerHelper {
      * Emails settings.notificationEmail if settings.sendEmailOnFailure is set. A failure sending the
      * notification itself is logged, not thrown — it shouldn't be able to break the caller's own flow.
      * @param jobClassName The failing class's name, for the log line if sending fails.
-     * @param settings The resolved settings; supplies whether to send and who to.
+     * @param settings The resolved settings; supplies whether to send, who to, and which org-wide address to send from.
      * @param subject Email subject.
      * @param body Email plain-text body.
      */
@@ -51,6 +52,9 @@ public inherited sharing class AsyncJobHandlerHelper {
             email.setToAddresses(recipients);
             email.setSubject(subject);
             email.setPlainTextBody(body);
+            if (String.isNotBlank(settings.orgWideEmailAddressId)) {
+                email.setOrgWideEmailAddressId(settings.orgWideEmailAddressId);
+            }
             Messaging.sendEmail(new List<Messaging.SingleEmailMessage>{ email });
         } catch (Exception ex) {
             System.debug(LoggingLevel.ERROR, 'Failed to send failure notification for ' + jobClassName + ' to ' + settings.notificationEmail + ': ' + ex.getMessage());
@@ -81,5 +85,6 @@ public inherited sharing class AsyncJobHandlerHelper {
         public Integer maxRetryAttempts;
         public Boolean sendEmailOnFailure;
         public String notificationEmail;
+        public String orgWideEmailAddressId;
     }
 }

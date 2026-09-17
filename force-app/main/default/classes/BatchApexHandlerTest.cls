@@ -24,7 +24,7 @@ public class BatchApexHandlerTest {
     @isTest
     static void testInactiveConfigSkipsEnqueue() {
         BatchApexHandlerTestBatch batch = new BatchApexHandlerTestBatch();
-        batch.configureForTest(false, 0, false, null);
+        batch.configureForTest(false, 0, false, null, null);
 
         Id jobId = BatchApexHandler.run(batch);
 
@@ -64,7 +64,7 @@ public class BatchApexHandlerTest {
     static void testRetrySucceedsOnSecondAttempt() {
         insert new Opportunity(Name = 'Batch Handler Test 3', StageName = 'Prospecting', CloseDate = Date.today().addDays(30));
         BatchApexHandlerTestBatch batch = new BatchApexHandlerTestBatch();
-        batch.configureForTest(true, 2, false, null);
+        batch.configureForTest(true, 2, false, null, null);
 
         Test.startTest();
         batch.invokeHandleFinishForTest(1);
@@ -78,7 +78,7 @@ public class BatchApexHandlerTest {
     @isTest
     static void testRetryExhaustedSendsFailureEmailToMultipleRecipients() {
         BatchApexHandlerTestBatch batch = new BatchApexHandlerTestBatch();
-        batch.configureForTest(true, 1, true, 'first@example.com; second@example.com');
+        batch.configureForTest(true, 1, true, 'first@example.com; second@example.com', null);
         batch.setRetryAttemptForTest(1);
         Integer emailsBefore = Limits.getEmailInvocations();
 

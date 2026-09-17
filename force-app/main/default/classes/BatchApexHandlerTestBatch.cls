@@ -1,11 +1,12 @@
 @isTest
 public class BatchApexHandlerTestBatch extends BatchApexHandler {
 
-    public void configureForTest(Boolean isActive, Integer maxRetryAttempts, Boolean sendEmailOnFailure, String notificationEmail) {
+    public void configureForTest(Boolean isActive, Integer maxRetryAttempts, Boolean sendEmailOnFailure, String notificationEmail, String orgWideEmailAddressId) {
         settings.isActive = isActive;
         settings.maxRetryAttempts = maxRetryAttempts;
         settings.sendEmailOnFailure = sendEmailOnFailure;
         settings.notificationEmail = notificationEmail;
+        settings.orgWideEmailAddressId = orgWideEmailAddressId;
     }
 
     public void setRetryAttemptForTest(Integer value) {

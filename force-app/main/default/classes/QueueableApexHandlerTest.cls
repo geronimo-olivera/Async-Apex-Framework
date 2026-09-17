@@ -23,7 +23,7 @@ private class QueueableApexHandlerTest {
     @isTest
     static void testInactiveConfigSkipsEnqueue() {
         TestQueueable job = new TestQueueable();
-        job.configureForTest(false, 0, false, null);
+        job.configureForTest(false, 0, false, null, null);
 
         Id jobId = QueueableApexHandler.run(job);
 
@@ -51,7 +51,7 @@ private class QueueableApexHandlerTest {
     static void testRetrySucceedsOnSecondAttempt() {
         failThroughAttempt = 1;
         TestQueueable job = new TestQueueable();
-        job.configureForTest(true, 2, false, null);
+        job.configureForTest(true, 2, false, null, null);
 
         Test.startTest();
         job.execute(null);
@@ -66,7 +66,7 @@ private class QueueableApexHandlerTest {
     static void testRetryExhaustedSendsFailureEmailToMultipleRecipients() {
         failThroughAttempt = 99;
         TestQueueable job = new TestQueueable();
-        job.configureForTest(true, 1, true, 'first@example.com; second@example.com');
+        job.configureForTest(true, 1, true, 'first@example.com; second@example.com', null);
         job.setRetryAttemptForTest(1);
         Integer emailsBefore = Limits.getEmailInvocations();
 
@@ -82,7 +82,7 @@ private class QueueableApexHandlerTest {
     static void testInvalidNotificationAddressDoesNotBreakProcessing() {
         failThroughAttempt = 99;
         TestQueueable job = new TestQueueable();
-        job.configureForTest(true, 0, true, 'not-an-email');
+        job.configureForTest(true, 0, true, 'not-an-email', '0D8000000000000AAA');
 
         job.execute(null);
 
@@ -92,11 +92,12 @@ private class QueueableApexHandlerTest {
 
     public class TestQueueable extends QueueableApexHandler {
 
-        void configureForTest(Boolean isActive, Integer maxRetryAttempts, Boolean sendEmailOnFailure, String notificationEmail) {
+        void configureForTest(Boolean isActive, Integer maxRetryAttempts, Boolean sendEmailOnFailure, String notificationEmail, String orgWideEmailAddressId) {
             settings.isActive = isActive;
             settings.maxRetryAttempts = maxRetryAttempts;
             settings.sendEmailOnFailure = sendEmailOnFailure;
             settings.notificationEmail = notificationEmail;
+            settings.orgWideEmailAddressId = orgWideEmailAddressId;
         }
 
         void setRetryAttemptForTest(Integer value) {
