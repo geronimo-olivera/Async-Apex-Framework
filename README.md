@@ -66,3 +66,7 @@ That deploys both Apex handler base classes, `BatchApexHandler`, `QueueableApexH
 ## Documentation
 
 - [`docs/USAGE.md`](docs/USAGE.md) — creating a configuration record, easy and advanced worked examples for both Batch and Queueable (dynamic SOQL, callouts, chaining), retry behavior and why your job logic needs to be idempotent, why Batch and Queueable retry differently, failure emails, scheduling a job without Setup's "Schedule Apex" UI, testing your own jobs, and what to avoid.
+
+## License
+
+Released under the [MIT License](LICENSE).
