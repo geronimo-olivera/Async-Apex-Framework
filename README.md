@@ -2,6 +2,8 @@
 
 A metadata-driven Apex framework for Salesforce that removes the repetitive boilerplate around Batch Apex and Queueable Apex — active/inactive control, configurable batch size, automatic retry, and failure-email notifications, all driven by a single `Async_Job_Configuration__mdt` custom metadata type shared by both. Extend `BatchApexHandler` or `QueueableApexHandler`, implement the one or two methods that actually do your work, and launch it through `run()`.
 
+[![Deploy to Salesforce](https://raw.githubusercontent.com/afawcett/githubsfdeploy/master/deploy.png)](https://githubsfdeploy.herokuapp.com?owner=geronimo-olivera&repo=Async-Apex-Framework&ref=master)
+
 ## Purpose
 
 Batch and Queueable Apex classes tend to end up with the same handful of concerns copy-pasted into every one of them: an active/inactive switch so you can turn a job off without a deploy, a retry-on-failure loop, and a "notify someone if this ultimately fails" email. The goal of this framework is:
@@ -54,6 +56,14 @@ Getting there required working around three real, empirically-confirmed Salesfor
 See [Testing your own jobs](docs/USAGE.md#testing-your-own-jobs) in the usage doc if you're extending this framework and want to unit test your own subclass's retry or failure-email behavior — you'll hit the exact same three walls.
 
 ## Deploy to an org
+
+### One click
+
+[![Deploy to Salesforce](https://raw.githubusercontent.com/afawcett/githubsfdeploy/master/deploy.png)](https://githubsfdeploy.herokuapp.com?owner=geronimo-olivera&repo=Async-Apex-Framework&ref=master)
+
+Click the button, choose production or sandbox, and log in to the org. The deploy runs through [GitHub Salesforce Deploy](https://github.com/afawcett/githubsfdeploy), a free open-source tool by Andrew Fawcett. Try it in a sandbox first: a production deploy also runs your org's Apex tests.
+
+### From VS Code
 
 You need [VS Code with the Salesforce Extension Pack](https://developer.salesforce.com/tools/vscode/) and an authenticated org.
 
