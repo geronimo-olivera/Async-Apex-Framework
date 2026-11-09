@@ -23,13 +23,18 @@ An `Async_Job_Configuration__mdt` record is entirely optional. With no record, a
       <values><field>Is_Active__c</field><value xsi:type="xsd:boolean">true</value></values>
       <values><field>Batch_Size__c</field><value xsi:type="xsd:double">100</value></values>
       <values><field>Max_Retry_Attempts__c</field><value xsi:type="xsd:double">2</value></values>
+      <values><field>Retry_Delay_Minutes__c</field><value xsi:type="xsd:double">5</value></values>
       <values><field>Send_Email_On_Failure__c</field><value xsi:type="xsd:boolean">true</value></values>
       <values><field>Notification_Emails__c</field><value xsi:type="xsd:string">ops@example.com; oncall@example.com</value></values>
       <values><field>Org_Wide_Email_Address_Id__c</field><value xsi:type="xsd:string">0D8XXXXXXXXXXXXXXX</value></values>
   </CustomMetadata>
   ```
 
-`Class_Name__c` is unique — you can't create two configuration records for the same class, so there's no ambiguity about which one applies.
+`Class_Name__c` is unique — you can't create two configuration records for the same class, so there's no ambiguity about which one applies. It's matched without regard to case. If your class overrides `toString()`, also override `getJobName()` to return the name to match, since the class name is detected from Apex's default `toString()`.
+
+`Retry_Delay_Minutes__c` (0 to 10) waits that many minutes before each retry, instead of retrying at once. Use it when failures come from an external system that's down or rate-limiting you: an immediate retry usually fails the same way.
+
+The configuration is read with `Async_Job_Configuration__mdt.getAll()`, not SOQL, so it costs no query and works for every user, including code that runs as a standard user in user mode.
 
 **Finding an Organization-Wide Email Address Id**: Setup → Organization-Wide Addresses → click the address you want to send from → the Id (starts with `0D8`) is in the browser's URL. There has to be at least one verified address configured here before you can reference it — this repo doesn't create one for you, since it depends on a real, org-owned email address being verified through an email Salesforce sends to it.
 
@@ -218,30 +223,51 @@ Watch the first page carefully: `WHERE Id > :lastProcessedId` is only added once
 
 ## Retry behavior and idempotency
 
-Both handlers can automatically retry a failed job, capped at 10 attempts regardless of what `Max_Retry_Attempts__c` says. What "retry" means is more aggressive than it sounds:
+Both handlers can automatically retry a failed job, capped at 10 attempts regardless of what `Max_Retry_Attempts__c` says, optionally waiting `Retry_Delay_Minutes__c` before each one.
 
-- **Batch**: a retry calls `getQueryLocator()` again from scratch and reprocesses **every** matching record — including the ones that already succeeded on the failed attempt. The retry check is at the whole-job level (`AsyncApexJob.NumberOfErrors > 0`), not per chunk.
-- **Queueable**: a retry re-runs `executeJob()` from scratch, on the same instance, with the same constructor state it started with.
+- **Batch**: a retry calls `getQueryLocator()` again from scratch and reprocesses **every** matching record — including the ones that already succeeded on the failed attempt. The retry check is at the whole-job level (`AsyncApexJob.NumberOfErrors > 0`), not per chunk. A failed chunk is rolled back on its own; the chunks that succeeded keep their changes.
+- **Queueable**: a failed attempt is rolled back completely, so a retry never starts from half-saved data. It re-runs `executeJob()` from scratch with the same constructor state.
 
-Neither one tracks "what already succeeded" for you. If `executeScope()`/`executeJob()` does anything that isn't safe to repeat — an external callout, sending an email, incrementing a counter — a retry after a partial failure can double it. Write your job logic so it's safe to run again on records it already touched:
+What isn't rolled back: callouts to other systems, emails already sent, and, in a Batch, the chunks that succeeded. So write your job logic so it's safe to run again on records it already touched:
 
 - Prefer `upsert` keyed by an external Id over `insert`, so a repeat run updates instead of duplicating.
 - Check a status field before acting (`if (record.Status__c != 'Synced') { ... }`) so an already-processed record is a no-op the second time.
 - For callouts to a system you don't control, use an idempotency key if the API supports one, or make the callout itself a query-then-act pattern instead of a blind POST.
 
-## Why Batch and Queueable retry differently
+## Why Batch and Queueable handle failures differently
 
-`BatchApexHandler.execute()` catches the subclass's exception, logs it, and **re-throws** it. That's deliberate — `AsyncApexJob.NumberOfErrors` (what `finish()` checks to decide whether to retry) only increments when an exception actually escapes `execute()`. Swallowing it there would silently disable retry.
+`BatchApexHandler.execute()` catches the subclass's exception, logs it, and **re-throws** it. That's deliberate — `AsyncApexJob.NumberOfErrors` (what `finish()` checks to decide whether to retry) only increments when an exception actually escapes `execute()`. Swallowing it there would silently disable retry. Governor limit errors in a chunk count the same way.
 
-`QueueableApexHandler.execute()` **never** re-throws, even after retries are exhausted — also deliberate, and verified against a real org rather than assumed: enqueueing a retry with `System.enqueueJob(this)` and then letting the original exception propagate rolls back that enqueue along with the rest of the failing transaction. A chained job enqueued right before a throw never actually runs. So a Queueable job that ultimately fails always shows as "Completed" in Setup → Apex Jobs; failure visibility comes from debug logs and the optional email, never from the job's own status.
+`QueueableApexHandler` uses a **Transaction Finalizer**. `execute()` attaches it and runs your `executeJob()` without catching anything. Salesforce runs the finalizer in its own transaction after the job ends, however it ended, and the finalizer calls `onFinish`, enqueues the retry, or sends the failure email. This replaced an earlier design that caught the exception inside `execute()`, and fixes three problems it had, all confirmed by running jobs in a real org:
+
+1. **Half-done work was kept.** Catching the exception meant the job's DML before the failure was committed. Now the failed attempt is rolled back.
+2. **Governor limit errors were lost.** No catch block can handle "Too many SOQL queries" or CPU time limits, so those jobs failed with no retry, no email and no `onFinish`. The finalizer runs for them too.
+3. **Failed jobs showed as Completed.** Now they show as Failed in Setup → Apex Jobs, with the error message.
+
+The earlier design existed because a retry enqueued in the failing transaction is rolled back with it. The finalizer enqueues the retry from its own transaction, so that's no longer a problem.
+
+## Limits checked for you
+
+- `QueueableApexHandler.run()` throws `AsyncJobHandlerBase.AsyncJobException` with a clear message if the transaction already enqueued as many jobs as Salesforce allows. The usual cause is starting one job per record from a trigger: pass all the records to one job instead.
+- `BatchApexHandler.run()` throws the same exception, wrapping Salesforce's own error, if the flex queue already holds 100 batch jobs.
 
 ## Failure emails
 
-Check `Send_Email_On_Failure__c`, set one or more semicolon-separated addresses in `Notification_Emails__c` (`first@x.com; second@x.com`), and set `Org_Wide_Email_Address_Id__c` to a verified Organization-Wide Email Address Id — validation rules require both of those fields whenever the checkbox is set. The email fires once, after the job (following any configured retries) still has errors.
+Check `Send_Email_On_Failure__c`, set one or more semicolon-separated addresses in `Notification_Emails__c` (`first@x.com; second@x.com`), and set `Org_Wide_Email_Address_Id__c` to a verified Organization-Wide Email Address Id — validation rules require both of those fields whenever the checkbox is set. The email fires once, after the job (following any configured retries) still has errors. It says which user the job ran as.
 
 **`Org_Wide_Email_Address_Id__c` is not optional in practice, even though the field itself allows blank.** `AsyncJobHandlerHelper.sendFailureEmail` only calls `setOrgWideEmailAddressId` when it's populated — leave it blank and the email falls back to sending as the running user. In a Batch or Queueable context that running user is often an automated/integration identity without a confirmed, deliverable email address, and `Messaging.sendEmail` can throw `INVALID_SENDER` in that case. The validation rule exists specifically to stop you from configuring a failure notification that looks correct but silently never arrives.
 
 A malformed address (in either `Notification_Emails__c` or an invalid `Org_Wide_Email_Address_Id__c`) doesn't block your job from running and doesn't throw — `AsyncJobHandlerHelper.sendFailureEmail` catches that internally and only logs it (`System.debug(LoggingLevel.ERROR, 'Failed to send failure notification for ...')`), on purpose, so a typo can never take down the actual record processing. The tradeoff is that nothing else tells you the notification silently failed — if you suspect a configured email isn't arriving, check debug logs for that exact line before assuming the job itself is fine.
+
+## Permissions
+
+Any user can start a job: reading the configuration needs no permission, and a job's queries and DML run in system mode unless your subclass is declared `with sharing`. Jobs run as the user who started them, so a job started from a trigger runs as whoever saved the record. That's checked end to end with a standard user starting both a Queueable and a Batch by saving a record.
+
+What can depend on that user:
+
+- **Failure emails** — the Organization-Wide Email Address must allow that user's profile. In Setup → Organization-Wide Addresses, choose "Allow All Profiles to Use this From Address", or add the profiles that start jobs. Otherwise the email fails, and since that's only logged, nobody hears about the failure.
+- **Callouts** — with Named Credentials that use an External Credential, the user who started the job needs a permission set granting access to its principal.
+- **`with sharing` subclasses** — see only the records that user can see.
 
 ## Scheduling a job
 
@@ -265,11 +291,12 @@ This keeps the scheduling concern (when, and with what fixed inputs) separate fr
 
 ## Testing your own jobs
 
-If you write your own `BatchApexHandler`/`QueueableApexHandler` subclass and want to unit test its retry or failure-email path, you'll run into the same three platform quirks `BatchApexHandlerTest`/`QueueableApexHandlerTest` already work around in this repo:
+If you write your own `BatchApexHandler`/`QueueableApexHandler` subclass and want to unit test its retry or failure-email path, you'll run into the same platform quirks `BatchApexHandlerTest`/`QueueableApexHandlerTest` already work around in this repo:
 
 1. **A `Database.Batchable` implementer must be a top-level class.** If your test needs a purpose-built Batch subclass to drive a scenario, it has to be its own top-level `@isTest` class — an inner class compiles but can't be reliably executed via `Database.executeBatch`.
-2. **In test context, if a Batch's only `execute()` call throws, `finish()` never runs**, and only one `Database.executeBatch` call is allowed per test method — so you can't trigger a real retry chain by making `executeScope()` throw for real. Test the retry/completion decision directly instead: `BatchApexHandler` exposes `protected void handleFinish(Integer numberOfErrors)` for exactly this — call it directly from a test-only subclass method with whatever error count you want to simulate, the same way `BatchApexHandlerTestBatch.invokeHandleFinishForTest` does.
-3. **A chained `System.enqueueJob(this)` retry runs in its own transaction.** If your test needs to assert something governor-limit-based (like `Limits.getEmailInvocations()`) about the exhausted-retry path, pre-set the retry counter (expose a small test-only setter for `retryAttempt`, like `QueueableApexHandlerTest.TestQueueable.setRetryAttemptForTest` does) so the path you're testing runs synchronously in the same transaction as your assertion, instead of relying on a genuine chained failure to get there.
+2. **In test context, if a Batch's only `execute()` call throws, `finish()` never runs**, and only one `Database.executeBatch` call is allowed per test method — so you can't trigger a real retry chain by making `executeScope()` throw for real. Test the retry/completion decision directly instead: `BatchApexHandler` exposes `protected void handleFinish(Integer numberOfErrors)` for exactly this — call it from a test-only subclass method, the same way `BatchApexHandlerTestBatch.invokeHandleFinishForTest` does.
+3. **In a test, a Queueable's exception surfaces at `Test.stopTest()`**, and the rollback and Failed status can't be observed there. Test the completion decision directly instead: `QueueableApexHandler.handleCompletion(Boolean failed, String errorMessage)` is `@TestVisible`, and `QueueableApexHandlerTest` shows how to drive the finalizer itself with a fake `System.FinalizerContext`.
+4. **A governor limit error can't be caught in a test** either, so a test can't simulate one end to end. The finalizer handles it the same way as any other failure, which is verified in a real org.
 
 ## What you should NOT do
 
@@ -279,5 +306,6 @@ If you write your own `BatchApexHandler`/`QueueableApexHandler` subclass and wan
 - Don't assume `Notification_Emails__c` or `Org_Wide_Email_Address_Id__c` will tell you if either is misconfigured — a malformed address, or an org-wide address Id that doesn't correspond to a real verified address, fails silently into a debug log line, not into the job's own success/failure state.
 - Don't leave `Org_Wide_Email_Address_Id__c` blank and assume `Notification_Emails__c` alone is enough — see [Failure emails](#failure-emails) above for why sending as the running user instead can fail outright in a Batch/Queueable context.
 - Don't try to create a second `Async_Job_Configuration__mdt` record for the same `Class_Name__c` — the field is unique, so the save/deploy is rejected outright.
-- Don't assume a Queueable job's Setup → Apex Jobs status reflects whether it actually failed — it always shows "Completed" by design, even after exhausting retries. Check debug logs or the failure email instead.
+- Don't catch every exception inside your own `executeJob()` just to keep the job "green". Let it propagate: the finalizer rolls the attempt back, retries it, and reports it. Catching it keeps half-done work and hides the failure.
+- Don't start one Queueable per record from a trigger. Pass all the records to one job — `run()` refuses past the per-transaction limit.
 - Don't assume `finish()` is guaranteed to run in every conceivable Batch failure scenario — if an extreme majority of a real job's chunks fail, the platform itself can abort the job early. If a configured failure email doesn't show up when you expect one, check Setup → Apex Jobs for a job stuck in "Failed" status rather than assuming the framework silently swallowed it.

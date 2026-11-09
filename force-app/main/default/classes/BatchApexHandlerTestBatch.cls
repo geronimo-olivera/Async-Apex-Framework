@@ -9,6 +9,10 @@ public class BatchApexHandlerTestBatch extends BatchApexHandler {
         settings.orgWideEmailAddressId = orgWideEmailAddressId;
     }
 
+    public void setRetryDelayForTest(Integer minutes) {
+        settings.retryDelayMinutes = minutes;
+    }
+
     public void setRetryAttemptForTest(Integer value) {
         retryAttempt = value;
     }
@@ -23,6 +27,7 @@ public class BatchApexHandlerTestBatch extends BatchApexHandler {
 
     protected override void executeScope(List<SObject> scope) {
         BatchApexHandlerTest.executeCount++;
+        BatchApexHandlerTest.recordsProcessed += scope.size();
         if (BatchApexHandlerTest.executeCount <= BatchApexHandlerTest.failThroughAttempt) {
             throw new DmlException('Simulated failure.');
         }

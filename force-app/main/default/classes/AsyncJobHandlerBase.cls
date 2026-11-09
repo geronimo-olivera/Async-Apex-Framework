@@ -15,9 +15,19 @@ public abstract class AsyncJobHandlerBase {
     protected Integer retryAttempt = 0;
 
     protected AsyncJobHandlerBase() {
-        jobClassName = AsyncJobHandlerHelper.resolveClassName(this);
+        jobClassName = getJobName();
         config = AsyncJobConfigurationService.getConfigurationByClassName(jobClassName);
         settings = AsyncJobHandlerHelper.resolveSettings(config);
+    }
+
+    /**
+     * The name this job's Async_Job_Configuration__mdt record is matched by, and the name used in logs and emails.
+     * Defaults to the class name, detected from the instance. Override it if your class overrides toString(), since
+     * the detection relies on Apex's default toString().
+     * @return the job's name.
+     */
+    protected virtual String getJobName() {
+        return AsyncJobHandlerHelper.resolveClassName(this);
     }
 
     /**
@@ -28,4 +38,9 @@ public abstract class AsyncJobHandlerBase {
      */
     protected virtual void onFinish(Boolean hadErrors) {
     }
+
+    /**
+     * Thrown when a job can't be started, with a message that says why and what to do.
+     */
+    public class AsyncJobException extends Exception {}
 }

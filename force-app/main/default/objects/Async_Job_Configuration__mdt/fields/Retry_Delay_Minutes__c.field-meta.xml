@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Retry_Delay_Minutes__c</fullName>
+    <description>Minutes to wait before each automatic retry, from 0 to 10. Useful when a job fails because an external system is down or rate-limiting: retrying at once usually fails again. Blank or 0 retries right away.</description>
+    <externalId>false</externalId>
+    <fieldManageability>DeveloperControlled</fieldManageability>
+    <inlineHelpText>Minutes to wait before each retry, 0 to 10. Blank or 0 retries right away.</inlineHelpText>
+    <label>Retry Delay Minutes</label>
+    <precision>2</precision>
+    <required>false</required>
+    <scale>0</scale>
+    <type>Number</type>
+    <unique>false</unique>
+</CustomField>

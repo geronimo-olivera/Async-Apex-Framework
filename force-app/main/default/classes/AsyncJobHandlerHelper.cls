@@ -8,6 +8,8 @@ public inherited sharing class AsyncJobHandlerHelper {
 
     private static final Integer DEFAULT_MAX_RETRY_ATTEMPTS = 0;
     private static final Integer MAX_ALLOWED_RETRY_ATTEMPTS = 10;
+    /** The longest delay System.enqueueJob accepts, in minutes. Also used for Batch retries, to keep one rule. */
+    private static final Integer MAX_RETRY_DELAY_MINUTES = 10;
 
     /**
      * Detects a handler instance's own concrete class name, so it can look up its own configuration
@@ -16,7 +18,7 @@ public inherited sharing class AsyncJobHandlerHelper {
      * @return the concrete subclass's API name.
      */
     public static String resolveClassName(Object handlerInstance) {
-        return String.valueOf(handlerInstance).split(':')[0];
+        return String.valueOf(handlerInstance).substringBefore(':');
     }
 
     /**
@@ -32,6 +34,8 @@ public inherited sharing class AsyncJobHandlerHelper {
         settings.sendEmailOnFailure = config != null && config.Send_Email_On_Failure__c;
         settings.notificationEmail = config != null ? config.Notification_Emails__c : null;
         settings.orgWideEmailAddressId = config != null ? config.Org_Wide_Email_Address_Id__c : null;
+        Integer rawDelay = config != null && config.Retry_Delay_Minutes__c != null ? Integer.valueOf(config.Retry_Delay_Minutes__c) : 0;
+        settings.retryDelayMinutes = Math.min(MAX_RETRY_DELAY_MINUTES, Math.max(0, rawDelay));
         return settings;
     }
 
@@ -51,10 +55,10 @@ public inherited sharing class AsyncJobHandlerHelper {
             Messaging.SingleEmailMessage email = new Messaging.SingleEmailMessage();
             email.setToAddresses(recipients);
             email.setSubject(subject);
-            email.setPlainTextBody(body);
             if (String.isNotBlank(settings.orgWideEmailAddressId)) {
                 email.setOrgWideEmailAddressId(settings.orgWideEmailAddressId);
             }
+            email.setPlainTextBody(body + '\n\nRan as: ' + UserInfo.getUserName());
             Messaging.sendEmail(new List<Messaging.SingleEmailMessage>{ email });
         } catch (Exception ex) {
             System.debug(LoggingLevel.ERROR, 'Failed to send failure notification for ' + jobClassName + ' to ' + settings.notificationEmail + ': ' + ex.getMessage());
@@ -86,5 +90,6 @@ public inherited sharing class AsyncJobHandlerHelper {
         public Boolean sendEmailOnFailure;
         public String notificationEmail;
         public String orgWideEmailAddressId;
+        public Integer retryDelayMinutes = 0;
     }
 }

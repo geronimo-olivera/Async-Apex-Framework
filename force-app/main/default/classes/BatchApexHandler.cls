@@ -12,6 +12,10 @@
  *                  A retry re-runs getQueryLocator() from scratch and reprocesses every matching record,
  *                  not just the ones that failed — executeScope() must be safe to run again on records it
  *                  already succeeded on (e.g. upsert by external Id, or check a status field first).
+ *
+ *                  A chunk that fails, including one that hits a governor limit, is rolled back on its own: the
+ *                  other chunks keep their changes. Retry_Delay_Minutes__c schedules the retry instead of
+ *                  starting it right away.
  **/
 public abstract class BatchApexHandler extends AsyncJobHandlerBase implements Database.Batchable<SObject>, Database.Stateful {
 
@@ -29,13 +33,34 @@ public abstract class BatchApexHandler extends AsyncJobHandlerBase implements Da
      * so Async_Job_Configuration__mdt's active flag and batch size are respected.
      * @param batchInstance The batch to run.
      * @return the enqueued job's Id, or null if Is_Active__c is false for this class.
+     * @throws AsyncJobException if Salesforce won't accept another batch right now (the flex queue holds 100 jobs).
      */
     public static Id run(BatchApexHandler batchInstance) {
         if (!batchInstance.settings.isActive) {
             System.debug(LoggingLevel.INFO, 'Async_Job_Configuration__mdt for ' + batchInstance.jobClassName + ' is inactive; skipping.');
             return null;
         }
-        return Database.executeBatch(batchInstance, batchInstance.batchSize);
+        return batchInstance.launch(0);
+    }
+
+    /**
+     * Starts this batch now, or schedules it to start after a delay.
+     * @param delayMinutes Minutes to wait. 0 starts it as soon as possible.
+     * @return the job's Id (the scheduled job's Id when delayed).
+     */
+    private Id launch(Integer delayMinutes) {
+        try {
+            if (delayMinutes > 0) {
+                String scheduleName = jobClassName + ' retry ' + retryAttempt + ' ' + Datetime.now().getTime();
+                return System.scheduleBatch(this, scheduleName.left(80), delayMinutes, batchSize);
+            }
+            return Database.executeBatch(this, batchSize);
+        } catch (AsyncException ex) {
+            AsyncJobException wrapped = new AsyncJobException('Cannot start ' + jobClassName + ': ' + ex.getMessage() +
+                ' Salesforce holds at most 100 batch jobs waiting to run; try again when some have finished.');
+            wrapped.initCause(ex);
+            throw wrapped;
+        }
     }
 
     /**
@@ -81,7 +106,7 @@ public abstract class BatchApexHandler extends AsyncJobHandlerBase implements Da
         if (hadErrors && retryAttempt < settings.maxRetryAttempts) {
             retryAttempt++;
             System.debug(LoggingLevel.WARN, 'Batch ' + jobClassName + ' finished with ' + numberOfErrors + ' error(s); retry attempt ' + retryAttempt + ' of ' + settings.maxRetryAttempts + '.');
-            Database.executeBatch(this, batchSize);
+            launch(settings.retryDelayMinutes);
             return;
         }
         if (hadErrors) {
